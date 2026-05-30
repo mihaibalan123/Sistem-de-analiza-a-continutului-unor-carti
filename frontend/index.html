@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem de analiză a conținutului unei cărți</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-dark text-light">
+
+    
+    <div class="background-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+    </div>
+
+    
+    <nav class="navbar navbar-expand-lg navbar-dark bg-transparent border-bottom border-secondary border-opacity-25 py-3">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+                <i class="fa-solid fa-book-open text-accent fs-3"></i>
+                <span class="font-outfit fw-bold tracking-wide fs-5">Sistem de analiză a conținutului unei cărți</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+                <ul class="navbar-nav gap-2">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#"><i class="fa-solid fa-upload me-1"></i> Încarcă Carte</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-books-link"><i class="fa-solid fa-book me-1"></i> Cărți Analizate</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    
+    <div class="container py-5">
+        
+        
+        <header class="text-center mb-5">
+            <h1 class="font-outfit display-4 fw-extrabold mb-2 text-gradient">Analiză Relații Personaje</h1>
+            <p class="text-secondary fs-5 lead">Extragere automată a personajelor și generarea hărții de interacțiuni utilizând OCR și AI</p>
+        </header>
+
+        
+        <section id="upload-section" class="spa-section">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    
+                    <div class="glass-card p-4 p-md-5 text-center">
+                        <div id="drop-zone" class="drop-zone py-5 px-3">
+                            <i class="fa-solid fa-cloud-arrow-up upload-icon mb-4"></i>
+                            <h3 class="font-outfit fw-semibold mb-2">Încarcă documentul PDF</h3>
+                            <p class="text-secondary mb-4">Trage fișierul aici sau apasă pe butonul de mai jos</p>
+                            <label for="file-input" class="btn btn-accent px-4 py-2 fw-semibold">
+                                Alege Fișier PDF
+                            </label>
+                            <input type="file" id="file-input" accept=".pdf" class="d-none" />
+                            <p class="text-secondary-50 mt-3 small">Doar fișiere în format .PDF sunt acceptate</p>
+                        </div>
+
+                        
+                        <div id="status-container" class="status-container d-none py-4">
+                            <div class="spinner-border text-accent mb-4" role="status" id="status-spinner" style="width: 3rem; height: 3rem;">
+                                <span class="visually-hidden">Se încarcă...</span>
+                            </div>
+                            <div class="success-animation d-none mb-4" id="status-success-icon">
+                                <i class="fa-solid fa-circle-check text-success display-4"></i>
+                            </div>
+                            <div class="error-animation d-none mb-4" id="status-error-icon">
+                                <i class="fa-solid fa-circle-xmark text-danger display-4"></i>
+                            </div>
+                            
+                            <h3 id="status-title" class="font-outfit fw-semibold mb-2">Se încarcă fișierul...</h3>
+                            
+                            
+                            <div class="w-100 px-4 my-4" id="progress-wrapper">
+                                <div class="progress bg-dark border border-secondary border-opacity-25 rounded-pill mb-2" style="height: 12px;">
+                                    <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-accent rounded-pill" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between text-secondary small px-1">
+                                    <span id="progress-text">Pagini procesate: 0 / 0</span>
+                                    <span id="progress-percentage">0%</span>
+                                </div>
+                            </div>
+
+                            <p id="status-message" class="text-secondary mb-4 px-3">Pregătim documentul pentru procesare OCR și analiză lingvistică.</p>
+                            
+                            <button id="view-results-btn" class="btn btn-accent px-4 py-2 fw-semibold d-none">
+                                <i class="fa-solid fa-chart-network me-2"></i>Vezi Harta Relațiilor
+                            </button>
+                            <button id="reset-btn" class="btn btn-outline-secondary px-4 py-2 fw-semibold ms-2 d-none">
+                                Încarcă alt document
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        
+        
+
+        
+        
+
+        
+        
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script src="script.js"></script>
+</body>
+</html>
