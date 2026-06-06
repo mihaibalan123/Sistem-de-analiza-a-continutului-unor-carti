@@ -114,10 +114,214 @@
         </section>
 
         
-        
+        <section id="dashboard-section" class="spa-section d-none">
+            
+            
+            <div class="glass-card p-4 mb-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div>
+                        <span class="badge bg-secondary mb-2" id="active-book-status-badge">OCR Finalizat</span>
+                        <h2 class="font-outfit fw-bold mb-1" id="active-book-title">Titlu Carte</h2>
+                        <p class="text-secondary mb-0" id="active-book-meta">Autor: - | Pagini: -</p>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-accent px-3 py-2 btn-sm fw-semibold" id="btn-start-relations-analysis" class="d-none">
+                                <i class="fa-solid fa-people-arrows-left-right me-1"></i> Analizează Relații
+                            </button>
+                            <button class="btn btn-primary px-3 py-2 btn-sm fw-semibold" id="btn-start-summary-analysis" class="d-none">
+                                <i class="fa-solid fa-file-invoice me-1"></i> Generează Rezumat
+                            </button>
+                            <button class="btn btn-danger px-3 py-2 btn-sm fw-semibold" id="btn-clear-book-analysis" class="d-none">
+                                <i class="fa-solid fa-eraser me-1"></i> Șterge Date Analiză
+                            </button>
+                            <button class="btn btn-warning px-3 py-2 btn-sm fw-semibold text-dark" id="btn-edit-active-book-metadata" class="d-none">
+                                <i class="fa-solid fa-pen-to-square me-1"></i> Editează Date
+                            </button>
+                            <button class="btn btn-success px-3 py-2 btn-sm fw-semibold d-none" id="btn-download-summary">
+                                <i class="fa-solid fa-file-word me-1"></i> Descarcă Rezumat Word
+                            </button>
+                            <button class="btn btn-outline-light px-3 py-2 btn-sm" id="btn-back-to-upload">
+                                <i class="fa-solid fa-arrow-left me-1"></i> Încarcă altă carte
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="ai-progress-container" class="mt-3 d-none">
+                    <div class="progress bg-dark border border-secondary border-opacity-25 rounded-pill mb-1" style="height: 10px;">
+                        <div id="ai-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-accent rounded-pill" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between text-secondary small px-1">
+                        <span id="ai-progress-text">Analiză AI: 0 / 0 loturi</span>
+                        <span id="ai-progress-percentage">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                
+                <div class="col-lg-4">
+                    <div class="d-flex flex-column gap-4">
+                        
+                        
+                        <div class="glass-card p-4">
+                            <h4 class="font-outfit fw-bold mb-3 d-flex align-items-center gap-2">
+                                <i class="fa-solid fa-users text-accent"></i> Personaje
+                            </h4>
+                            
+                            
+                            <div class="row g-2 mb-3">
+                                <div class="col-12">
+                                    <input type="text" id="filter-char-name" class="form-control form-control-sm bg-dark border-secondary text-light placeholder-secondary-50" placeholder="Caută personaje...">
+                                </div>
+                                <div class="col-6">
+                                    <select id="filter-char-gen" class="form-select form-select-sm bg-dark border-secondary text-light">
+                                        <option value="">Gen: Toate</option>
+                                        <option value="Masculin">Masculin</option>
+                                        <option value="Feminin">Feminin</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <select id="filter-char-rol" class="form-select form-select-sm bg-dark border-secondary text-light">
+                                        <option value="">Rol: Toate</option>
+                                        <option value="Principal">Principal</option>
+                                        <option value="Secundar">Secundar</option>
+                                        <option value="Episodic">Episodic</option>
+                                        <option value="Colectiv">Colectiv</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive max-height-300">
+                                <table class="table table-dark table-hover align-middle mb-0">
+                                    <thead>
+                                        <tr class="text-secondary small">
+                                            <th>Nume</th>
+                                            <th>Gen</th>
+                                            <th>Rol</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="characters-tbody">
+                                        
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        
+                        <div class="glass-card p-4">
+                            <h4 class="font-outfit fw-bold mb-3 d-flex align-items-center gap-2">
+                                <i class="fa-solid fa-comments text-accent"></i> Dialoguri și Legături
+                            </h4>
+                            
+                            
+                            <div class="row g-2 mb-3 align-items-center">
+                                <div class="col-7">
+                                    <input type="text" id="filter-rel-name" class="form-control form-control-sm bg-dark border-secondary text-light placeholder-secondary-50" placeholder="Caută după personaj...">
+                                </div>
+                                <div class="col-5">
+                                    <div class="d-flex align-items-center gap-2 bg-dark border border-secondary border-opacity-50 px-2 py-1 rounded" style="height: 31px;">
+                                        <label for="filter-rel-min" class="text-secondary small mb-0 text-nowrap">Min:</label>
+                                        <input type="number" id="filter-rel-min" class="form-control form-control-sm bg-transparent border-0 text-light p-0 text-center" min="1" value="1" style="width: 35px; outline: none; box-shadow: none;">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive max-height-300">
+                                <table class="table table-dark table-hover align-middle mb-0">
+                                    <thead>
+                                        <tr class="text-secondary small">
+                                            <th>Personaj 1</th>
+                                            <th>Personaj 2</th>
+                                            <th class="text-center">Dialoguri</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="relations-tbody">
+                                        
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        
+                        <div class="glass-card p-4">
+                            <h4 class="font-outfit fw-bold mb-3 d-flex align-items-center gap-2">
+                                <i class="fa-solid fa-circle-question text-accent"></i> Asistent AI: Întrebări Personaje
+                            </h4>
+                            <div class="mb-3">
+                                <label for="qa-question-input" class="form-label text-secondary small">Pune o întrebare despre personajele sau acțiunea cărții:</label>
+                                <div class="input-group">
+                                    <input type="text" id="qa-question-input" class="form-control form-control-sm bg-dark border-secondary text-light placeholder-secondary-50" placeholder="ex: Cine este Ana și de cine e legată?">
+                                    <button class="btn btn-accent btn-sm fw-semibold px-3" id="btn-submit-qa">
+                                        <i class="fa-solid fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="qa-response-container" class="bg-dark border border-secondary border-opacity-25 rounded p-3 d-none max-height-300 overflow-y-auto">
+                                <div id="qa-loading" class="text-center py-2 d-none">
+                                    <div class="spinner-border spinner-border-sm text-accent" role="status"></div>
+                                    <span class="text-secondary small ms-2">Asistentul se gândește...</span>
+                                </div>
+                                <div id="qa-answer" class="text-light small" style="line-height: 1.5; white-space: pre-line;">
+                                    
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                
+                <div class="col-lg-8">
+                    <div class="glass-card p-4 h-100 d-flex flex-column" style="min-height: 500px;">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="font-outfit fw-bold mb-0 d-flex align-items-center gap-2">
+                                <i class="fa-solid fa-circle-nodes text-accent"></i> Harta Relațiilor Interactivă
+                            </h4>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" id="btn-fit-graph" title="Încadrează graful">
+                                    <i class="fa-solid fa-expand"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" id="btn-refresh-graph" title="Reîmprospătează">
+                                    <i class="fa-solid fa-rotate"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        
+                        <div id="network-container" class="flex-grow-1 border border-secondary border-opacity-25 rounded-3 bg-dark-deep position-relative">
+                            <div id="network-loading" class="position-absolute top-50 start-50 translate-middle d-none">
+                                <div class="spinner-border text-accent" role="status">
+                                    <span class="visually-hidden">Se încarcă harta...</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3 text-secondary small d-flex align-items-center gap-3">
+                            <div><i class="fa-solid fa-info-circle text-accent me-1"></i> Trage de noduri pentru a le rearanja. Folosește rotița mouse-ului pentru zoom.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
         
-        
+        <section id="books-list-section" class="spa-section d-none">
+            <div class="glass-card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="font-outfit fw-bold mb-0 d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-book-open text-accent"></i> Cărți Analizate în Sistem
+                    </h3>
+                    <button id="btn-clear-all-books" class="btn btn-danger btn-sm px-3 py-2 fw-semibold">
+                        <i class="fa-solid fa-trash-can me-1"></i> Șterge Toate Cărțile
+                    </button>
+                </div>
+                <div class="row g-4" id="books-grid">
+                    
+                </div>
+            </div>
+        </section>
 
         
         
