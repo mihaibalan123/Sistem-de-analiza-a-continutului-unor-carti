@@ -223,3 +223,49 @@ def start_ai_analysis_background(json_path, carte_id, run_relations=True, run_su
         threads.append(thread_sum)
     for t in threads:
         t.start()
+
+def _worker_ai_analysis_thread(json_path, carte_id, agent=None):
+    logger.info(f'Încep analiza de relații în fundal pentru cartea ID {carte_id} folosind fișierul {json_path}')
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            date_carte = json.load(f)
+        if agent is None:
+            from .agents import DialogAgent
+            agent = DialogAgent()
+        dimensiune_lot = 5
+        loturi = [date_carte[x:x + dimensiune_lot] for x in range(0, len(date_carte), dimensiune_lot)]
+        total_loturi = len(loturi)
+        update_progress_relations(carte_id, 0, total_loturi, 'processing', f'Pregătire (0/{total_loturi} loturi)...')
+        for idx, lot in enumerate(loturi):
+            if not Carte.objects.filter(id_carte=carte_id).exists():
+                logger.info(f'Cartea ID {carte_id} a fost ștearsă. Oprim analiza de relații.')
+                break
+            update_progress_relations(carte_id, idx, total_loturi, 'processing', f'Analizăm lotul {idx + 1}/{total_loturi}...')
+            text_lot = ''
+            for pag in lot:
+                if pag['text_extras'].strip():
+                    text_lot += f'\n\n--- PAGINA {pag['pagina_pdf']} ---\n\n{pag['text_extras']}'
+            if text_lot.strip():
+                try:
+                    agent.proceseaza_pagina_si_salveaza(text_lot, carte_id)
+                except Exception as ex_ai:
+                    logger.error(f'Eroare la procesarea relațiilor lotului {idx + 1} pentru cartea {carte_id}: {ex_ai}')
+            update_progress_relations(carte_id, idx + 1, total_loturi, 'processing', f'Lot {idx + 1}/{total_loturi} finalizat.')
+            if idx < total_loturi - 1:
+                logger.info(f'DialogAgent: Aștept 13 secunde pentru a respecta cota API Gemini...')
+                for _ in range(13):
+                    time.sleep(1)
+                    if not Carte.objects.filter(id_carte=carte_id).exists():
+                        break
+        if Carte.objects.filter(id_carte=carte_id).exists():
+            update_progress_relations(carte_id, total_loturi, total_loturi, 'done', 'Relații finalizate.')
+            check_and_finalize_ai(carte_id)
+            logger.info(f'Analiza de relații finalizată total pentru cartea ID {carte_id}')
+    except Exception as e:
+        logger.error(f'Eroare critică în thread-ul de relații pentru cartea {carte_id}: {e}')
+        err_msg = str(e)
+        if 'quota' in err_msg.lower() or '429' in err_msg:
+            err_msg = 'Limita de cereri la API-ul Gemini a fost depășită (eroare 429 Quota Exceeded). Te rugăm să verifici contul tău Google AI Studio sau să încerci mai târziu.'
+        elif 'api key' in err_msg.lower() or 'api_key' in err_msg.lower():
+            err_msg = 'Cheia API Gemini configurată în fișierul .env este invalidă sau lipsește.'
+        report_ai_error(carte_id, f'A apărut o eroare la analiza de relații: {err_msg}')

@@ -130,3 +130,84 @@ def get_book_graph(request, carte_id):
     summary_path = os.path.join(settings.MEDIA_ROOT, 'summaries', f'rezumat_carte_{carte_id}.docx')
     has_summary = os.path.exists(summary_path)
     return Response({'carte': {'titlu': carte.titlu, 'autor': f'{carte.id_autor.prenume or ''} {carte.id_autor.nume}'.strip() if carte.id_autor else 'Necunoscut', 'an_aparitie': carte.an_aparitie, 'nr_pagini': carte.nr_pagini, 'has_summary': has_summary}, 'personaje': personaje_list, 'relatii': relatii_list, 'has_summary': has_summary})
+
+@api_view(['DELETE'])
+def delete_book(request, carte_id):
+    try:
+        carte = Carte.objects.get(id_carte=carte_id)
+        carte.delete()
+        return Response({'message': 'Cartea a fost ștearsă cu succes.'}, status=status.HTTP_200_OK)
+    except Carte.DoesNotExist:
+        return Response({'error': 'Cartea nu există.'}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+def clear_all_books(request):
+    Relatie.objects.all().delete()
+    Personaj.objects.all().delete()
+    Carte.objects.all().delete()
+    Autor.objects.all().delete()
+    return Response({'message': 'Toate datele au fost șterse cu succes.'}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def start_ai_analysis(request, carte_id):
+    try:
+        carte = Carte.objects.get(id_carte=carte_id)
+    except Carte.DoesNotExist:
+        return Response({'error': 'Cartea nu a fost găsită.'}, status=status.HTTP_404_NOT_FOUND)
+    import glob
+    outputs_dir = os.path.normpath(os.path.join(settings.BASE_DIR, '..', 'outputs'))
+    pattern = os.path.join(outputs_dir, f'carte_{carte_id}_*.json')
+    matches = glob.glob(pattern)
+    if not matches:
+        safe_name = sanitize_filename(carte.titlu)
+        pattern_fallback = os.path.join(outputs_dir, f'*{safe_name}*_extras.json')
+        matches = glob.glob(pattern_fallback)
+    if not matches:
+        pattern_any = os.path.join(outputs_dir, f'*_extras.json')
+        matches = glob.glob(pattern_any)
+        if not matches:
+            return Response({'error': 'Fișierul parsat (JSON) nu a fost găsit în outputs/. Te rugăm să rulezi din nou parsarea.'}, status=status.HTTP_404_NOT_FOUND)
+    json_path = matches[0]
+    run_relations = request.data.get('run_relations', True)
+    run_summary = request.data.get('run_summary', True)
+    from .services import start_ai_analysis_background
+    start_ai_analysis_background(json_path, carte_id, run_relations=run_relations, run_summary=run_summary)
+    return Response({'message': 'Analiza AI a început în fundal.'}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def clear_book_analysis(request, carte_id):
+    try:
+        carte = Carte.objects.get(id_carte=carte_id)
+    except Carte.DoesNotExist:
+        return Response({'error': 'Cartea nu a fost găsită.'}, status=status.HTTP_404_NOT_FOUND)
+    from django.db import transaction
+    with transaction.atomic():
+        Personaj.objects.filter(id_carte=carte).delete()
+    summary_path = os.path.join(settings.MEDIA_ROOT, 'summaries', f'rezumat_carte_{carte_id}.docx')
+    if os.path.exists(summary_path):
+        try:
+            os.remove(summary_path)
+        except Exception as e:
+            logger.warning(f'Nu s-a putut șterge fișierul Word pentru cartea {carte_id}: {e}')
+    from .services import PROGRESS_LOCK, PROGRESS_STATE
+    with PROGRESS_LOCK:
+        if carte_id in PROGRESS_STATE:
+            del PROGRESS_STATE[carte_id]
+    return Response({'message': 'Datele de analiză pentru această carte au fost șterse.'}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def download_summary(request, carte_id):
+    try:
+        carte = Carte.objects.get(id_carte=carte_id)
+    except Carte.DoesNotExist:
+        return Response({'error': 'Cartea nu a fost găsită.'}, status=status.HTTP_404_NOT_FOUND)
+    summary_path = os.path.join(settings.MEDIA_ROOT, 'summaries', f'rezumat_carte_{carte_id}.docx')
+    if not os.path.exists(summary_path):
+        return Response({'error': 'Rezumatul nu este disponibil pentru această carte.'}, status=status.HTTP_404_NOT_FOUND)
+    from django.http import FileResponse
+    import urllib.parse
+    filename = f'Rezumat - {carte.titlu}.docx'
+    encoded_filename = urllib.parse.quote(filename)
+    response = FileResponse(open(summary_path, 'rb'), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    response['Content-Disposition'] = f"attachment; filename*=UTF-8''{encoded_filename}"
+    return response
