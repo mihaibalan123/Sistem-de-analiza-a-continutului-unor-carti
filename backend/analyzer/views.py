@@ -194,20 +194,3 @@ def clear_book_analysis(request, carte_id):
         if carte_id in PROGRESS_STATE:
             del PROGRESS_STATE[carte_id]
     return Response({'message': 'Datele de analiză pentru această carte au fost șterse.'}, status=status.HTTP_200_OK)
-
-@api_view(['GET'])
-def download_summary(request, carte_id):
-    try:
-        carte = Carte.objects.get(id_carte=carte_id)
-    except Carte.DoesNotExist:
-        return Response({'error': 'Cartea nu a fost găsită.'}, status=status.HTTP_404_NOT_FOUND)
-    summary_path = os.path.join(settings.MEDIA_ROOT, 'summaries', f'rezumat_carte_{carte_id}.docx')
-    if not os.path.exists(summary_path):
-        return Response({'error': 'Rezumatul nu este disponibil pentru această carte.'}, status=status.HTTP_404_NOT_FOUND)
-    from django.http import FileResponse
-    import urllib.parse
-    filename = f'Rezumat - {carte.titlu}.docx'
-    encoded_filename = urllib.parse.quote(filename)
-    response = FileResponse(open(summary_path, 'rb'), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-    response['Content-Disposition'] = f"attachment; filename*=UTF-8''{encoded_filename}"
-    return response

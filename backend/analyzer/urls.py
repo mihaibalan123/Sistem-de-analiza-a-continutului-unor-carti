@@ -1,3 +1,3 @@
 from django.urls import path
 from . import views
-urlpatterns = [path('upload/', views.upload_file, name='upload_file'), path('status/<int:carte_id>/', views.check_status, name='check_status'), path('books/', views.list_books, name='list_books')]
+urlpatterns = [path('upload/', views.upload_file, name='upload_file'), path('status/<int:carte_id>/', views.check_status, name='check_status'), path('books/', views.list_books, name='list_books'), path('books/<int:carte_id>/graph/', views.get_book_graph, name='get_book_graph'), path('books/<int:carte_id>/delete/', views.delete_book, name='delete_book'), path('books/clear-all/', views.clear_all_books, name='clear_all_books'), path('books/<int:carte_id>/analyze/', views.start_ai_analysis, name='start_ai_analysis'), path('books/<int:carte_id>/ask/', views.ask_about_character, name='ask_about_character')]

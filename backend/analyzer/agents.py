@@ -151,3 +151,61 @@ class DialogAgent:
             for i in range(len(prezente) - 1):
                 simulari.append(Interaction(personaj_1=prezente[i][0], personaj_2=prezente[i + 1][0], gen_personaj_1=prezente[i][1], gen_personaj_2=prezente[i + 1][1], tip_personaj_1=prezente[i][2], tip_personaj_2=prezente[i + 1][2]))
         return simulari
+
+class CharacterQAAgent:
+
+    def __init__(self, dialog_agent=None):
+        if dialog_agent:
+            self.api_keys = dialog_agent.api_keys
+            self.current_key_idx = dialog_agent.current_key_idx
+            self.active = dialog_agent.active
+            self.model = dialog_agent.model
+        else:
+            keys_str = os.environ.get('GEMINI_API_KEYS') or os.environ.get('GEMINI_API_KEY') or ''
+            self.api_keys = [k.strip() for k in keys_str.split(',') if k.strip()]
+            self.current_key_idx = 0
+            if GENAI_AVAILABLE and self.api_keys:
+                self.configure_current_key()
+                self.active = True
+            else:
+                self.active = False
+                logger.warning('Gemini API keys are missing for CharacterQAAgent. Fallback to simulation.')
+
+    def configure_current_key(self):
+        key = self.api_keys[self.current_key_idx]
+        masked_key = f'{key[:6]}...{key[-4:]}' if len(key) > 10 else '...'
+        logger.info(f'CharacterQAAgent: Configurăm Gemini API cu cheia index {self.current_key_idx} ({masked_key})')
+        genai.configure(api_key=key)
+        self.model = genai.GenerativeModel('gemini-2.5-flash-lite')
+
+    def raspunde_intrebare(self, carte_titlu: str, carte_autor: str, personaje_info: str, relatii_info: str, intrebare: str) -> str:
+        if not self.active:
+            return self._simuleaza_raspuns(carte_titlu, intrebare)
+        prompt = f'\nEști un critic literar experimentat și asistent virtual inteligent. Răspunde la întrebarea utilizatorului despre opera literară "{carte_titlu}" de {carte_autor}.\n\nIată datele extrase din baza noastră de date despre personaje și interacțiunile lor directe (numărul de dialoguri):\n---\nPERSONAJE DETECTATE:\n{personaje_info}\n\nRELAȚII DETECTATE:\n{relatii_info}\n---\n\nÎntrebarea utilizatorului:\n"{intrebare}"\n\nINSTRUCȚIUNI:\n1. Răspunde politicos și redactează un răspuns bine documentat, coerent și captivant în limba română.\n2. Integrează datele structurate primite (cum ar fi statutul personajului de protagonist/secundar și cuplurile cele mai active) și coroborează-le cu cunoștințele tale despre acțiunea cărții.\n3. Dacă întrebarea se referă la un personaj specific, explică cine este acesta, ce rol are în operă și cum interacționează cu ceilalți.\n4. Fii concis, dar acoperă toate detaliile importante (aproximativ 2-4 paragrafe).\n'
+        while self.current_key_idx < len(self.api_keys):
+            try:
+                response = self.model.generate_content(prompt)
+                return response.text.strip()
+            except Exception as e:
+                err_msg = str(e)
+                is_quota_or_auth = '429' in err_msg or 'quota' in err_msg.lower() or 'api key' in err_msg.lower() or ('api_key' in err_msg.lower()) or ('invalid' in err_msg.lower())
+                if is_quota_or_auth and self.current_key_idx < len(self.api_keys) - 1:
+                    logger.warning(f'CharacterQAAgent: Cheia API Gemini de la indexul {self.current_key_idx} a eșuat. Trecem la următoarea...')
+                    self.current_key_idx += 1
+                    self.configure_current_key()
+                    continue
+                else:
+                    logger.error(f'CharacterQAAgent: Eroare la apelul Gemini API: {e}')
+                    raise e
+
+    def _simuleaza_raspuns(self, carte_titlu: str, intrebare: str) -> str:
+        q_lower = intrebare.lower()
+        if 'cine' in q_lower or 'rol' in q_lower or 'despre' in q_lower:
+            name = 'personajul menționat'
+            for candidate in ['ion', 'ana', 'gheorghe', 'florica', 'moromete', 'catrina', 'otilia', 'felix', 'zoe', 'tipatescu']:
+                if candidate in q_lower:
+                    name = candidate.capitalize()
+                    break
+            return f'[Simulare Asistent AI] În opera "{carte_titlu}", {name} are un rol deosebit de important în structura dramatică a narațiunii. Din datele de dialoguri extrase, se poate observa că acest personaj participă activ la evoluția acțiunii, interacțiunile sale definind conflictele sociale și morale specifice mediului descris de autor.'
+        else:
+            return f'[Simulare Asistent AI] Răspuns la întrebarea despre "{carte_titlu}": Opera literară investigată prezintă o complexitate deosebită a caracterelor și a relațiilor inter-umane. Graficul interactiv de dialoguri arată intensitatea interacțiunilor dintre personaje, reflectând exact structura narativă concepută de autor.'
