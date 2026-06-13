@@ -650,4 +650,313 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = `${API_BASE_URL}/books/${currentBookId}/download-summary/`;
     });
 
+    
+    const btnSubmitQa = document.getElementById('btn-submit-qa');
+    const inputQa = document.getElementById('qa-question-input');
+    const containerResponseQa = document.getElementById('qa-response-container');
+    const loadingQa = document.getElementById('qa-loading');
+    const answerQa = document.getElementById('qa-answer');
+
+    function sendQaRequest() {
+        if (!currentBookId) return;
+        const questionText = inputQa.value.trim();
+        if (!questionText) return;
+
+        
+        containerResponseQa.classList.remove('d-none');
+        loadingQa.classList.remove('d-none');
+        answerQa.textContent = '';
+        btnSubmitQa.disabled = true;
+
+        fetch(`${API_BASE_URL}/books/${currentBookId}/ask/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ question: questionText })
+        })
+        .then(res => {
+            if (!res.ok) {
+                return res.json().then(err => { throw err; });
+            }
+            return res.json();
+        })
+        .then(data => {
+            loadingQa.classList.add('d-none');
+            answerQa.textContent = data.answer;
+            btnSubmitQa.disabled = false;
+            inputQa.value = ''; 
+        })
+        .catch(err => {
+            console.error("Eroare la asistentul QA:", err);
+            loadingQa.classList.add('d-none');
+            answerQa.textContent = `Eroare: ${err.error || 'A apărut o problemă la comunicarea cu asistentul AI.'}`;
+            btnSubmitQa.disabled = false;
+        });
+    }
+
+    btnSubmitQa.addEventListener('click', sendQaRequest);
+    inputQa.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendQaRequest();
+        }
+    });
+
+    function populateTables(personaje, relatii) {
+        
+        const charTbody = document.getElementById('characters-tbody');
+        charTbody.innerHTML = '';
+        
+        if (personaje.length === 0) {
+            charTbody.innerHTML = '<tr><td colspan="3" class="text-center text-secondary py-3">Nu au fost detectate personaje.</td></tr>';
+        } else {
+            personaje.forEach(p => {
+                const tr = document.createElement('tr');
+                let badgeClass = 'bg-secondary';
+                if (p.tip_personaj === 'Principal') badgeClass = 'bg-primary';
+                else if (p.tip_personaj === 'Secundar') badgeClass = 'bg-info';
+                
+                tr.innerHTML = `
+                    <td class="fw-medium">${p.nume}</td>
+                    <td><span class="badge bg-dark border border-secondary border-opacity-50 text-secondary">${p.gen}</span></td>
+                    <td><span class="badge ${badgeClass}">${p.tip_personaj}</span></td>
+                `;
+                charTbody.appendChild(tr);
+            });
+        }
+
+        
+        const relTbody = document.getElementById('relations-tbody');
+        relTbody.innerHTML = '';
+        
+        if (relatii.length === 0) {
+            relTbody.innerHTML = '<tr><td colspan="3" class="text-center text-secondary py-3">Nu s-au detectat interacțiuni directe.</td></tr>';
+        } else {
+            
+            const sortedRelatii = [...relatii].sort((a, b) => b.numar_dialoguri - a.numar_dialoguri);
+            
+            sortedRelatii.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${r.personaj_1_nume}</td>
+                    <td>${r.personaj_2_nume}</td>
+                    <td class="text-center"><span class="badge bg-accent px-2.5 py-1.5 fs-7">${r.numar_dialoguri}</span></td>
+                `;
+                relTbody.appendChild(tr);
+            });
+        }
+    }
+
+    function drawGraph(personaje, relatii) {
+        const container = document.getElementById('network-container');
+        
+        
+        const nodesArray = personaje.map(p => {
+            
+            let color = '#6b7280'; 
+            let size = 15;
+            
+            if (p.tip_personaj === 'Principal') {
+                color = '#6366f1'; 
+                size = 30;
+            } else if (p.tip_personaj === 'Secundar') {
+                color = '#a855f7'; 
+                size = 22;
+            } else if (p.tip_personaj === 'Episodic') {
+                color = '#3b82f6'; 
+                size = 16;
+            }
+
+            return {
+                id: p.id_personaj,
+                label: p.nume,
+                shape: 'dot',
+                size: size,
+                color: {
+                    background: color,
+                    border: '#ffffff',
+                    highlight: {
+                        background: '#f43f5e', 
+                        border: '#ffffff'
+                    }
+                },
+                font: {
+                    color: '#f3f4f6',
+                    face: 'Inter',
+                    size: p.tip_personaj === 'Principal' ? 14 : 12,
+                    bold: p.tip_personaj === 'Principal'
+                }
+            };
+        });
+
+        
+        const edgesArray = relatii.map(r => {
+            
+            const width = Math.min(10, 1 + Math.log2(r.numar_dialoguri + 1));
+            
+            return {
+                from: r.id_personaj1,
+                to: r.id_personaj2,
+                width: width,
+                color: {
+                    color: 'rgba(99, 102, 241, 0.4)',
+                    highlight: 'rgba(244, 63, 94, 0.8)'
+                },
+                label: String(r.numar_dialoguri),
+                font: {
+                    color: '#9ca3af',
+                    size: 10,
+                    face: 'Inter',
+                    background: '#0b0f19'
+                }
+            };
+        });
+
+        const data = {
+            nodes: new vis.DataSet(nodesArray),
+            edges: new vis.DataSet(edgesArray)
+        };
+
+        const options = {
+            physics: {
+                enabled: true,
+                barnesHut: {
+                    gravitationalConstant: -3000,
+                    centralGravity: 0.3,
+                    springLength: 120,
+                    springConstant: 0.04,
+                    damping: 0.09
+                },
+                stabilization: {
+                    iterations: 100,
+                    updateInterval: 25
+                }
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 200,
+                hideEdgesOnDrag: false
+            }
+        };
+
+        network = new vis.Network(container, data, options);
+    }
+
+    btnFitGraph.addEventListener('click', () => {
+        if (network) network.fit({ animation: true });
+    });
+
+    btnRefreshGraph.addEventListener('click', () => {
+        if (currentBookId) {
+            loadDashboard(currentBookId);
+        }
+    });
+
+    
+    function loadBooksList() {
+        const grid = document.getElementById('books-grid');
+        grid.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-accent" role="status"></div></div>';
+
+        fetch(`${API_BASE_URL}/books/`)
+        .then(res => res.json())
+        .then(books => {
+            grid.innerHTML = '';
+            if (books.length === 0) {
+                grid.innerHTML = '<div class="col-12 text-center text-secondary py-5">Nicio carte analizată momentan. Încarcă o carte din meniu!</div>';
+                return;
+            }
+            
+            books.forEach(b => {
+                const col = document.createElement('div');
+                col.className = 'col-md-6 col-lg-4';
+                col.innerHTML = `
+                    <div class="glass-card book-card p-4 h-100 d-flex flex-column justify-content-between">
+                        <div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="badge bg-secondary">${b.an_aparitie}</span>
+                                <span class="badge bg-dark border border-secondary border-opacity-50 text-secondary">${b.nr_pagini} pagini</span>
+                            </div>
+                            <h4 class="font-outfit fw-bold text-gradient mb-1">${b.titlu}</h4>
+                            <p class="text-secondary mb-3">Autor: ${b.autor_nume} ${b.autor_prenume || ''}</p>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-sm btn-accent flex-grow-1 btn-load-book" data-id="${b.id_carte}">
+                                <i class="fa-solid fa-eye me-1"></i> Vezi Analiza
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning btn-edit-book" data-id="${b.id_carte}" title="Editează metadate">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger btn-delete-book" data-id="${b.id_carte}" title="Șterge cartea">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(col);
+            });
+
+            
+            grid.querySelectorAll('.btn-load-book').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const bookId = this.getAttribute('data-id');
+                    loadDashboard(bookId);
+                });
+            });
+
+            
+            grid.querySelectorAll('.btn-edit-book').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const bookId = this.getAttribute('data-id');
+                    openEditMetadataModal(bookId);
+                });
+            });
+
+            
+            grid.querySelectorAll('.btn-delete-book').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const bookId = this.getAttribute('data-id');
+                    if (confirm("Ești sigur că vrei să ștergi această carte din sistem?")) {
+                        fetch(`${API_BASE_URL}/books/${bookId}/delete/`, {
+                            method: 'DELETE'
+                        })
+                        .then(res => {
+                            if (res.ok) {
+                                loadBooksList();
+                            } else {
+                                alert("Eroare la ștergerea cărții.");
+                            }
+                        })
+                        .catch(err => console.error(err));
+                    }
+                });
+            });
+        })
+        .catch(err => {
+            console.error("Eroare la încărcarea listei de cărți:", err);
+            grid.innerHTML = '<div class="col-12 text-center text-danger py-5">Eroare la încărcarea listei de cărți de pe server.</div>';
+        });
+    }
+
+    
+    if (btnClearAllBooks) {
+        btnClearAllBooks.addEventListener('click', () => {
+            if (confirm("Ești sigur că vrei să ștergi TOATE cărțile și toate analizele stocate în baza de date? Această acțiune este ireversibilă.")) {
+                fetch(`${API_BASE_URL}/books/clear-all/`, {
+                    method: 'POST'
+                })
+                .then(res => {
+                    if (res.ok) {
+                        loadBooksList();
+                    } else {
+                        alert("Eroare la curățarea datelor.");
+                    }
+                })
+                .catch(err => console.error(err));
+            }
+        });
+    }
+
     });
