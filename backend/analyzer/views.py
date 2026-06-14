@@ -194,3 +194,50 @@ def clear_book_analysis(request, carte_id):
         if carte_id in PROGRESS_STATE:
             del PROGRESS_STATE[carte_id]
     return Response({'message': 'Datele de analiză pentru această carte au fost șterse.'}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def download_summary(request, carte_id):
+    try:
+        carte = Carte.objects.get(id_carte=carte_id)
+    except Carte.DoesNotExist:
+        return Response({'error': 'Cartea nu a fost găsită.'}, status=status.HTTP_404_NOT_FOUND)
+    summary_path = os.path.join(settings.MEDIA_ROOT, 'summaries', f'rezumat_carte_{carte_id}.docx')
+    if not os.path.exists(summary_path):
+        return Response({'error': 'Rezumatul nu este disponibil pentru această carte.'}, status=status.HTTP_404_NOT_FOUND)
+    from django.http import FileResponse
+    import urllib.parse
+    filename = f'Rezumat - {carte.titlu}.docx'
+    encoded_filename = urllib.parse.quote(filename)
+    response = FileResponse(open(summary_path, 'rb'), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    response['Content-Disposition'] = f"attachment; filename*=UTF-8''{encoded_filename}"
+    return response
+
+@api_view(['POST'])
+def ask_about_character(request, carte_id):
+    try:
+        carte = Carte.objects.select_related('id_autor').get(id_carte=carte_id)
+    except Carte.DoesNotExist:
+        return Response({'error': 'Cartea nu a fost găsită.'}, status=status.HTTP_404_NOT_FOUND)
+    intrebare = request.data.get('question', '').strip()
+    if not intrebare:
+        return Response({'error': 'Întrebarea nu poate fi goală.'}, status=status.HTTP_400_BAD_REQUEST)
+    personaje = Personaj.objects.filter(id_carte=carte)
+    personaje_info = []
+    for p in personaje:
+        personaje_info.append(f'- {p.nume} (Gen: {p.gen}, Rol: {p.tip_personaj})')
+    personaje_str = '\n'.join(personaje_info) if personaje_info else 'Niciun personaj detectat momentan.'
+    relatii = Relatie.objects.filter(id_personaj1__id_carte=carte, id_personaj2__id_carte=carte).select_related('id_personaj1', 'id_personaj2')
+    relatii_info = []
+    for r in relatii:
+        relatii_info.append(f'- {r.id_personaj1.nume} <-> {r.id_personaj2.nume}: {r.numar_dialoguri} dialoguri')
+    relatii_str = '\n'.join(relatii_info) if relatii_info else 'Nicio relație directă de dialog înregistrată.'
+    from .agents import CharacterQAAgent, DialogAgent
+    dialog_agent = DialogAgent()
+    qa_agent = CharacterQAAgent(dialog_agent=dialog_agent)
+    try:
+        autor_nume = f'{carte.id_autor.prenume or ''} {carte.id_autor.nume}'.strip() if carte.id_autor else 'Necunoscut'
+        raspuns = qa_agent.raspunde_intrebare(carte_titlu=carte.titlu, carte_autor=autor_nume, personaje_info=personaje_str, relatii_info=relatii_str, intrebare=intrebare)
+        return Response({'answer': raspuns}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f'Eroare în QA Agent pentru cartea {carte_id}: {e}')
+        return Response({'error': f'Eroare la generarea răspunsului: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
