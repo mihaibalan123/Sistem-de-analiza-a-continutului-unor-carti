@@ -959,4 +959,132 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    });
+    
+    const btnEditActiveBook = document.getElementById('btn-edit-active-book-metadata');
+    if (btnEditActiveBook) {
+        btnEditActiveBook.addEventListener('click', () => {
+            if (currentBookId) {
+                openEditMetadataModal(currentBookId);
+            }
+        });
+    }
+
+    let editModalInstance = null;
+
+    function openEditMetadataModal(bookId) {
+        
+        fetch(`${API_BASE_URL}/books/${bookId}/metadata/`)
+        .then(res => {
+            if (!res.ok) throw new Error("Eroare la preluarea datelor cărții.");
+            return res.json();
+        })
+        .then(data => {
+            document.getElementById('edit-meta-book-id').value = data.id_carte;
+            document.getElementById('edit-meta-title').value = data.titlu;
+            document.getElementById('edit-meta-year').value = data.an_aparitie;
+            document.getElementById('edit-meta-author-prenume').value = data.autor_prenume || '';
+            document.getElementById('edit-meta-author-nume').value = data.autor_nume;
+            document.getElementById('edit-meta-author-birth').value = data.autor_data_nasterii ? data.autor_data_nasterii.substring(0, 10) : '';
+            document.getElementById('edit-meta-author-death').value = data.autor_data_deces ? data.autor_data_deces.substring(0, 10) : '';
+
+            const modalEl = document.getElementById('editMetadataModal');
+            editModalInstance = new bootstrap.Modal(modalEl);
+            editModalInstance.show();
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Nu s-au putut prelua metadatele cărții.");
+        });
+    }
+
+    
+    const btnSubmitEditMetadata = document.getElementById('btn-submit-edit-metadata');
+    if (btnSubmitEditMetadata) {
+        btnSubmitEditMetadata.addEventListener('click', () => {
+            const form = document.getElementById('edit-metadata-form');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            const bookId = document.getElementById('edit-meta-book-id').value;
+            const updatedData = {
+                titlu: document.getElementById('edit-meta-title').value,
+                an_aparitie: document.getElementById('edit-meta-year').value,
+                autor_prenume: document.getElementById('edit-meta-author-prenume').value,
+                autor_nume: document.getElementById('edit-meta-author-nume').value,
+                autor_data_nasterii: document.getElementById('edit-meta-author-birth').value,
+                autor_data_deces: document.getElementById('edit-meta-author-death').value
+            };
+
+            btnSubmitEditMetadata.disabled = true;
+            btnSubmitEditMetadata.textContent = "Se salvează...";
+
+            fetch(`${API_BASE_URL}/books/${bookId}/metadata/update/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updatedData)
+            })
+            .then(res => res.json())
+            .then(data => {
+                btnSubmitEditMetadata.disabled = false;
+                btnSubmitEditMetadata.textContent = "Salvează Modificările";
+                
+                if (data.error) {
+                    alert("Eroare: " + data.error);
+                } else {
+                    if (editModalInstance) {
+                        editModalInstance.hide();
+                    }
+                    alert("Metadatele au fost salvate cu succes!");
+                    
+                    
+                    if (currentBookId && currentBookId.toString() === bookId.toString()) {
+                        loadDashboard(bookId);
+                    } else {
+                        
+                        loadBooksList();
+                    }
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                btnSubmitEditMetadata.disabled = false;
+                btnSubmitEditMetadata.textContent = "Salvează Modificările";
+                alert("Eroare de rețea la salvarea metadatelor.");
+            });
+        });
+    }
+
+    
+    const savedBookId = localStorage.getItem('currentBookId');
+    const savedBookName = localStorage.getItem('currentBookName');
+    
+    if (savedBookId && savedBookName) {
+        
+        fetch(`${API_BASE_URL}/status/${savedBookId}/`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'processing') {
+                currentBookId = parseInt(savedBookId);
+                
+                dropZone.classList.add('d-none');
+                statusContainer.classList.remove('d-none');
+                startPollingStatus(currentBookId, savedBookName);
+            } else {
+                localStorage.removeItem('currentBookId');
+                localStorage.removeItem('currentBookName');
+                showSection('upload');
+            }
+        })
+        .catch(err => {
+            localStorage.removeItem('currentBookId');
+            localStorage.removeItem('currentBookName');
+            showSection('upload');
+        });
+    } else {
+        showSection('upload');
+    }
+});

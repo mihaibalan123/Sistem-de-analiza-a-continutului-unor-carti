@@ -374,7 +374,60 @@
         </div>
 
         
-        
+        <div class="modal fade" id="editMetadataModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="editMetadataModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content bg-dark text-light border border-secondary border-opacity-50 shadow-lg" style="border-radius: 16px; backdrop-filter: blur(10px); background: rgba(20, 24, 38, 0.95);">
+                    <div class="modal-header border-bottom border-secondary border-opacity-25 py-3">
+                        <h5 class="modal-title font-outfit fw-bold d-flex align-items-center gap-2" id="editMetadataModalLabel">
+                            <i class="fa-solid fa-pen-to-square text-accent fs-5"></i> Editează Date Carte
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Închide"></button>
+                    </div>
+                    <div class="modal-body py-4">
+                        <form id="edit-metadata-form">
+                            <input type="hidden" id="edit-meta-book-id">
+                            <div class="mb-3">
+                                <label for="edit-meta-title" class="form-label small text-secondary fw-semibold">Titlu Carte</label>
+                                <input type="text" class="form-control bg-dark border-secondary text-light focus-accent" id="edit-meta-title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit-meta-year" class="form-label small text-secondary fw-semibold">An Apariție</label>
+                                <input type="number" class="form-control bg-dark border-secondary text-light focus-accent" id="edit-meta-year" min="1001" max="2026" required>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6 mb-3">
+                                    <label for="edit-meta-author-prenume" class="form-label small text-secondary fw-semibold">Prenume Autor</label>
+                                    <input type="text" class="form-control bg-dark border-secondary text-light focus-accent" id="edit-meta-author-prenume" placeholder="Ex: Mihai">
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label for="edit-meta-author-nume" class="form-label small text-secondary fw-semibold">Nume Autor</label>
+                                    <input type="text" class="form-control bg-dark border-secondary text-light focus-accent" id="edit-meta-author-nume" placeholder="Ex: Eminescu" required>
+                                </div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6 mb-3">
+                                    <label for="edit-meta-author-birth" class="form-label small text-secondary fw-semibold">Data Nașterii (opțional)</label>
+                                    <input type="date" class="form-control bg-dark border-secondary text-light focus-accent" id="edit-meta-author-birth">
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label for="edit-meta-author-death" class="form-label small text-secondary fw-semibold">Data Decesului (opțional)</label>
+                                    <input type="date" class="form-control bg-dark border-secondary text-light focus-accent" id="edit-meta-author-death">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer border-top border-secondary border-opacity-25 py-3">
+                        <button type="button" class="btn btn-outline-secondary px-4 py-2" data-bs-dismiss="modal" id="btn-cancel-edit-metadata">Anulează</button>
+                        <button type="button" class="btn btn-accent px-4 py-2 fw-semibold" id="btn-submit-edit-metadata">Salvează Modificările</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     

@@ -241,3 +241,54 @@ def ask_about_character(request, carte_id):
     except Exception as e:
         logger.error(f'Eroare în QA Agent pentru cartea {carte_id}: {e}')
         return Response({'error': f'Eroare la generarea răspunsului: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def get_book_metadata(request, carte_id):
+    try:
+        carte = Carte.objects.select_related('id_autor').get(id_carte=carte_id)
+    except Carte.DoesNotExist:
+        return Response({'error': 'Cartea nu a fost găsită.'}, status=status.HTTP_404_NOT_FOUND)
+    autor = carte.id_autor
+    return Response({'id_carte': carte.id_carte, 'titlu': carte.titlu, 'an_aparitie': carte.an_aparitie, 'nr_pagini': carte.nr_pagini, 'autor_nume': autor.nume if autor else '', 'autor_prenume': autor.prenume if autor else '', 'autor_data_nasterii': str(autor.data_nasterii) if autor and autor.data_nasterii else '', 'autor_data_deces': str(autor.data_deces) if autor and autor.data_deces else ''})
+
+@api_view(['POST'])
+def update_book_metadata(request, carte_id):
+    try:
+        carte = Carte.objects.select_related('id_autor').get(id_carte=carte_id)
+    except Carte.DoesNotExist:
+        return Response({'error': 'Cartea nu a fost găsită.'}, status=status.HTTP_404_NOT_FOUND)
+    titlu = request.data.get('titlu', '').strip()
+    an_aparitie_str = request.data.get('an_aparitie', '').strip()
+    nume_autor = request.data.get('autor_nume', '').strip()
+    prenume_autor = request.data.get('autor_prenume', '').strip()
+    data_nasterii = request.data.get('autor_data_nasterii', '').strip()
+    data_deces = request.data.get('autor_data_deces', '').strip()
+    if not titlu or not nume_autor:
+        return Response({'error': 'Titlul cărții și numele de familie al autorului sunt obligatorii.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        an_aparitie = int(an_aparitie_str)
+        if an_aparitie < 1001 or an_aparitie > 2026:
+            return Response({'error': 'Anul apariției trebuie să fie între 1001 și 2026.'}, status=status.HTTP_400_BAD_REQUEST)
+    except ValueError:
+        return Response({'error': 'Anul apariției trebuie să fie un număr valid.'}, status=status.HTTP_400_BAD_REQUEST)
+    from django.db import transaction
+    with transaction.atomic():
+        carte.titlu = titlu
+        carte.an_aparitie = an_aparitie
+        defaults = {'prenume': prenume_autor, 'data_nasterii': data_nasterii if data_nasterii else '1900-01-01'}
+        if data_deces:
+            defaults['data_deces'] = data_deces
+        else:
+            defaults['data_deces'] = None
+        autor, created = Autor.objects.get_or_create(nume=nume_autor, prenume=prenume_autor, defaults=defaults)
+        if not created:
+            if data_nasterii:
+                autor.data_nasterii = data_nasterii
+            if data_deces:
+                autor.data_deces = data_deces
+            else:
+                autor.data_deces = None
+            autor.save()
+        carte.id_autor = autor
+        carte.save()
+    return Response({'message': 'Metadatele cărții au fost actualizate cu succes!', 'carte': {'id_carte': carte.id_carte, 'titlu': carte.titlu, 'an_aparitie': carte.an_aparitie, 'autor': f'{autor.prenume or ''} {autor.nume}'.strip()}})
