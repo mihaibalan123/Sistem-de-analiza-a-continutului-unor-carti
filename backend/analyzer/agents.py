@@ -152,6 +152,85 @@ class DialogAgent:
                 simulari.append(Interaction(personaj_1=prezente[i][0], personaj_2=prezente[i + 1][0], gen_personaj_1=prezente[i][1], gen_personaj_2=prezente[i + 1][1], tip_personaj_1=prezente[i][2], tip_personaj_2=prezente[i + 1][2]))
         return simulari
 
+class SummaryAgent:
+
+    def __init__(self, dialog_agent=None):
+        if dialog_agent:
+            self.api_keys = dialog_agent.api_keys
+            self.current_key_idx = dialog_agent.current_key_idx
+            self.active = dialog_agent.active
+            self.model = dialog_agent.model
+        else:
+            keys_str = os.environ.get('GEMINI_API_KEYS') or os.environ.get('GEMINI_API_KEY') or ''
+            self.api_keys = [k.strip() for k in keys_str.split(',') if k.strip()]
+            self.current_key_idx = 0
+            if GENAI_AVAILABLE and self.api_keys:
+                self.configure_current_key()
+                self.active = True
+            else:
+                self.active = False
+                logger.warning('Gemini API keys are missing for SummaryAgent. Fallback to simulation.')
+
+    def configure_current_key(self):
+        key = self.api_keys[self.current_key_idx]
+        masked_key = f'{key[:6]}...{key[-4:]}' if len(key) > 10 else '...'
+        logger.info(f'SummaryAgent: Configurăm Gemini API cu cheia index {self.current_key_idx} ({masked_key})')
+        genai.configure(api_key=key)
+        self.model = genai.GenerativeModel('gemini-2.5-flash-lite')
+
+    def extrage_rezumat(self, text_carte: str, carte_titlu: str, carte_autor: str) -> BookSummary:
+        if not self.active:
+            return self._simuleaza_rezumat(carte_titlu, carte_autor)
+        prompt = f'\nEști un critic literar de prestigiu și asistent de analiză literară.\nSarcina ta este să citești textul complet al operei literare "{carte_titlu}" de {carte_autor} furnizat mai jos și să realizezi o analiză și un rezumat general, profesionist, structurat și redactat într-un stil literar îngrijit în limba română.\n\nTrebuie să returnezi un obiect JSON valid care conține exact următoarele câmpuri:\n1. "rezumat_general": Un rezumat general general, cuprinzător, detaliat și fluid al întregului roman, evidențiind conflictul central și evoluția acțiunii.\n2. "teme_principale": O listă cu 3-5 teme literare sau motive cheie din operă (ex: datoria, războiul, drama conștiinței, dragostea).\n3. "sectiuni": O listă cu principalele secțiuni sau capitole cronologice (între 5 și 8 secțiuni mari) care rezumă cursul întregii opere de la început până la sfârșit. Fiecare secțiune trebuie să conțină:\n   - "titlu_sectiune": Un titlu reprezentativ (ex: "Capitolul I: Condamnarea lui Svoboda", "Apostol Bologa și dilema datoriei").\n   - "rezumat_sectiune": Rezumatul detaliat al acelei părți.\n   - "idei_principale": 2-4 idei sau detalii esențiale din acea secțiune.\n\nTextul complet al operei (extras prin OCR):\n---\n{text_carte}\n---\n\nINSTRUCȚIUNI CRITICE PENTRU LIMITAREA LUNGIMII ȘI SIGURANȚĂ JSON:\n1. Rezumatul general ("rezumat_general") trebuie să aibă maximum 3-4 paragrafe.\n2. Teme principale ("teme_principale") trebuie să conțină exact 3-4 teme importante.\n3. Secțiuni ("sectiuni") trebuie să conțină EXACT între 5 și 7 secțiuni mari care să acopere cronologic întregul text analizat.\n4. Pentru fiecare secțiune:\n   - Rezumatul de secțiune ("rezumat_sectiune") trebuie să fie concis (maximum 2 paragrafe).\n   - Ideile principale ("idei_principale") trebuie să conțină exact 3 puncte esențiale.\n5. Toate valorile text (string-urile) din JSON trebuie scrise curgător. Nu folosi taste/literal newline direct în interiorul ghilimelelor dintr-un string JSON, ci scrie textul într-un mod continuu.\nNu lungi inutil descrierile, fii dens, precis și concis!\n'
+        import time
+        retries = 0
+        while self.current_key_idx < len(self.api_keys):
+            try:
+                response = self.model.generate_content(prompt, generation_config=genai.GenerationConfig(response_mime_type='application/json', response_schema=BookSummarySchema, temperature=0.2))
+                cleaned_text = self._curata_newlines_json(response.text)
+                data = json.loads(cleaned_text)
+                return BookSummary(**data)
+            except Exception as e:
+                err_msg = str(e)
+                if 'response' in locals() and hasattr(response, 'text'):
+                    logger.error(f'SummaryAgent: Răspunsul brut care a generat eroarea de parsare:\n{response.text}')
+                is_quota_or_auth = '429' in err_msg or 'quota' in err_msg.lower() or 'api key' in err_msg.lower() or ('api_key' in err_msg.lower()) or ('invalid' in err_msg.lower())
+                if is_quota_or_auth and self.current_key_idx < len(self.api_keys) - 1:
+                    logger.warning(f'SummaryAgent: Cheia API Gemini de la indexul {self.current_key_idx} a eșuat ({err_msg[:80]}). Trecem la următoarea cheie...')
+                    self.current_key_idx += 1
+                    self.configure_current_key()
+                    continue
+                elif not is_quota_or_auth and retries < 2:
+                    retries += 1
+                    logger.warning(f'SummaryAgent: Eroare temporară de parsare/generare ({err_msg[:80]}). Reîncercăm cererea (încercarea {retries}/2)...')
+                    time.sleep(1)
+                    continue
+                else:
+                    logger.error(f'SummaryAgent: Eroare critică sau lipsă chei de rezervă la apelul Gemini API: {e}')
+                    raise e
+
+    def _simuleaza_rezumat(self, carte_titlu: str, carte_autor: str) -> BookSummary:
+        return BookSummary(rezumat_general=f"Opera literară '{carte_titlu}', scrisă de {carte_autor}, reprezintă o capodoperă a literaturii române. Acțiunea explorează conflicte morale profunde și analizează în profunzime psihologia umană în fața unor încercări cruciale. Personajele complexe evoluează într-un cadru social și istoric tensionat, oferind o perspectivă realistă asupra vieții.", teme_principale=['Destinul și condiția umană', 'Conflictul de conștiință și datoria', 'Relațiile sociale și familiale'], sectiuni=[ChapterSummary(titlu_sectiune='Secțiunea I: Introducere și Context', rezumat_sectiune='Introducerea personajelor principale și stabilirea cadrului inițial al acțiunii.', idei_principale=['Stabilirea decorului', 'Apariția conflictului', 'Primele decizii']), ChapterSummary(titlu_sectiune='Secțiunea II: Punctul Culminant', rezumat_sectiune='Tensiunea atinge cote maxime pe măsură ce conflictele dintre personaje se intensifică.', idei_principale=['Confruntări directe', 'Evoluții dramatice', 'Dileme morale']), ChapterSummary(titlu_sectiune='Secțiunea III: Rezoluție și Deznodământ', rezumat_sectiune='Rezolvarea conflictelor narative și concluziile asupra destinului personajelor.', idei_principale=['Deznodământul operei', 'Reflecțiile finale', 'Mântuirea sufletească'])])
+
+    def _curata_newlines_json(self, json_str: str) -> str:
+        in_string = False
+        escaped = False
+        chars = []
+        for char in json_str:
+            if char == '"' and (not escaped):
+                in_string = not in_string
+                chars.append(char)
+            elif char == '\\' and in_string:
+                escaped = not escaped
+                chars.append(char)
+            elif char in ('\r', '\n') and in_string:
+                chars.append('\\n')
+                escaped = False
+            else:
+                chars.append(char)
+                escaped = False
+        return ''.join(chars)
+
 class CharacterQAAgent:
 
     def __init__(self, dialog_agent=None):

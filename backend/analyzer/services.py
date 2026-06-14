@@ -269,3 +269,133 @@ def _worker_ai_analysis_thread(json_path, carte_id, agent=None):
         elif 'api key' in err_msg.lower() or 'api_key' in err_msg.lower():
             err_msg = 'Cheia API Gemini configurată în fișierul .env este invalidă sau lipsește.'
         report_ai_error(carte_id, f'A apărut o eroare la analiza de relații: {err_msg}')
+
+def _worker_summary_thread(json_path, carte_id, agent=None):
+    logger.info(f'Încep thread-ul de rezumare AI pentru cartea ID {carte_id} folosinf fișierul {json_path}')
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            date_carte = json.load(f)
+        if agent is None:
+            from .agents import SummaryAgent
+            agent = SummaryAgent()
+        update_progress_summary(carte_id, 0, 1, 'processing', 'Se trimite textul complet către Gemini pentru rezumare generală (durată estimată: ~15-20 secunde)...')
+        if not Carte.objects.filter(id_carte=carte_id).exists():
+            logger.info(f'Cartea ID {carte_id} a fost ștearsă. Oprim thread-ul de rezumare.')
+            return
+        carte = Carte.objects.select_related('id_autor').get(id_carte=carte_id)
+        autor_nume = f'{carte.id_autor.prenume or ''} {carte.id_autor.nume}'.strip()
+        text_complet = ''
+        for pag in date_carte:
+            if pag.get('text_extras', '').strip():
+                text_complet += f'\n\n--- PAGINA {pag['pagina_pdf']} ---\n\n{pag['text_extras']}'
+        rezumat_ob = None
+        if text_complet.strip():
+            rezumat_ob = agent.extrage_rezumat(text_complet, carte.titlu, autor_nume)
+        else:
+            raise Exception('Nu s-a găsit text extras în fișierul OCR al cărții pentru a genera rezumatul.')
+        if not rezumat_ob:
+            raise Exception('Nu s-a putut obține rezumatul de la agentul AI.')
+        update_progress_summary(carte_id, 0, 1, 'processing', 'Rezumat general finalizat. Se compilează documentul Word...')
+        if Carte.objects.filter(id_carte=carte_id).exists():
+            doc = Document()
+            title_p = doc.add_paragraph()
+            title_run = title_p.add_run(carte.titlu)
+            title_run.font.name = 'Times New Roman'
+            title_run.font.size = Pt(24)
+            title_run.font.bold = True
+            title_run.font.color.rgb = RGBColor(31, 78, 121)
+            title_p.paragraph_format.space_after = Pt(6)
+            author_p = doc.add_paragraph()
+            author_text = f'Autor: {carte.id_autor.prenume or ''} {carte.id_autor.nume}'.strip()
+            if carte.an_aparitie:
+                author_text += f' | An apariție: {carte.an_aparitie}'
+            author_run = author_p.add_run(author_text)
+            author_run.font.name = 'Times New Roman'
+            author_run.font.size = Pt(14)
+            author_run.font.italic = True
+            author_run.font.color.rgb = RGBColor(100, 100, 100)
+            author_p.paragraph_format.space_after = Pt(24)
+            doc.add_paragraph().add_run('Rezumat de Analiză Literară Inteligentă').font.bold = True
+            doc.add_paragraph('Acest document conține rezumatul structurat generat automat pe baza analizei textului extras prin OCR.').paragraph_format.space_after = Pt(24)
+            doc.add_page_break()
+            h_gen = doc.add_heading(level=2)
+            h_gen_run = h_gen.add_run('Rezumat General')
+            h_gen_run.font.name = 'Times New Roman'
+            h_gen_run.font.color.rgb = RGBColor(31, 78, 121)
+            h_gen.paragraph_format.space_before = Pt(12)
+            h_gen.paragraph_format.space_after = Pt(6)
+            for paragraph_text in rezumat_ob.rezumat_general.split('\n'):
+                p_text = paragraph_text.strip()
+                if p_text:
+                    p = doc.add_paragraph()
+                    p_run = p.add_run(p_text)
+                    p_run.font.name = 'Times New Roman'
+                    p_run.font.size = Pt(12)
+                    p.paragraph_format.space_before = Pt(6)
+                    p.paragraph_format.space_after = Pt(6)
+            h_teme = doc.add_heading(level=2)
+            h_teme_run = h_teme.add_run('Teme Principale')
+            h_teme_run.font.name = 'Times New Roman'
+            h_teme_run.font.color.rgb = RGBColor(31, 78, 121)
+            h_teme.paragraph_format.space_before = Pt(18)
+            h_teme.paragraph_format.space_after = Pt(6)
+            for tema in rezumat_ob.teme_principale:
+                if tema.strip():
+                    p_tema = doc.add_paragraph(style='List Bullet')
+                    p_tema_run = p_tema.add_run(tema.strip())
+                    p_tema_run.font.name = 'Times New Roman'
+                    p_tema_run.font.size = Pt(12)
+                    p_tema.paragraph_format.space_after = Pt(4)
+            doc.add_page_break()
+            h_analiza = doc.add_heading(level=2)
+            h_analiza_run = h_analiza.add_run('Analiză Detaliată pe Secțiuni')
+            h_analiza_run.font.name = 'Times New Roman'
+            h_analiza_run.font.color.rgb = RGBColor(31, 78, 121)
+            h_analiza.paragraph_format.space_before = Pt(12)
+            h_analiza.paragraph_format.space_after = Pt(12)
+            for sec in rezumat_ob.sectiuni:
+                h_sec = doc.add_heading(level=3)
+                h_sec_run = h_sec.add_run(sec.titlu_sectiune)
+                h_sec_run.font.name = 'Times New Roman'
+                h_sec_run.font.color.rgb = RGBColor(31, 78, 121)
+                h_sec.paragraph_format.space_before = Pt(12)
+                h_sec.paragraph_format.space_after = Pt(6)
+                if sec.idei_principale:
+                    p_intro = doc.add_paragraph()
+                    p_intro_run = p_intro.add_run('Idei principale:')
+                    p_intro_run.font.name = 'Times New Roman'
+                    p_intro_run.font.size = Pt(11)
+                    p_intro_run.font.bold = True
+                    p_intro.paragraph_format.space_after = Pt(4)
+                    for idee in sec.idei_principale:
+                        if idee.strip():
+                            p_idee = doc.add_paragraph(style='List Bullet')
+                            p_idee_run = p_idee.add_run(idee.strip())
+                            p_idee_run.font.name = 'Times New Roman'
+                            p_idee_run.font.size = Pt(11)
+                            p_idee.paragraph_format.space_after = Pt(2)
+                if sec.rezumat_sectiune.strip():
+                    for paragraph_text in sec.rezumat_sectiune.split('\n'):
+                        p_text = paragraph_text.strip()
+                        if p_text:
+                            p_sec = doc.add_paragraph()
+                            p_sec_run = p_sec.add_run(p_text)
+                            p_sec_run.font.name = 'Times New Roman'
+                            p_sec_run.font.size = Pt(12)
+                            p_sec.paragraph_format.space_before = Pt(6)
+                            p_sec.paragraph_format.space_after = Pt(12)
+            media_dir = os.path.join(settings.MEDIA_ROOT, 'summaries')
+            os.makedirs(media_dir, exist_ok=True)
+            docx_path = os.path.join(media_dir, f'rezumat_carte_{carte_id}.docx')
+            doc.save(docx_path)
+            logger.info(f'Fișierul Word a fost salvat cu succes la {docx_path}')
+            update_progress_summary(carte_id, 1, 1, 'done', 'Rezumat Word finalizat.')
+            check_and_finalize_ai(carte_id)
+    except Exception as e:
+        logger.error(f'Eroare critică în thread-ul de rezumare pentru cartea {carte_id}: {e}')
+        err_msg = str(e)
+        if 'quota' in err_msg.lower() or '429' in err_msg:
+            err_msg = 'Limita de cereri la API-ul Gemini a fost depășită (eroare 429 Quota Exceeded). Te rugăm să reîncerci mai târziu.'
+        elif 'api key' in err_msg.lower() or 'api_key' in err_msg.lower():
+            err_msg = 'Cheia API Gemini configurată în fișierul .env este invalidă sau lipsește.'
+        report_ai_error(carte_id, f'A apărut o eroare la generarea rezumatului: {err_msg}')
