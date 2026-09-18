@@ -1,0 +1,35 @@
+name: Build Release
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create Release Zip
+        run: |
+          mkdir release_build
+          
+          cp -r backend release_build/
+          cp -r frontend release_build/
+          cp docker-compose.yml release_build/
+          cp .env.example release_build/
+          cp start_windows.bat release_build/
+          cp start_linux.sh release_build/
+          
+          rm -rf release_build/backend/venv
+          rm -rf release_build/backend/__pycache__
+          
+          cd release_build
+          zip -r Sistem-Analiza-Carti.zip .
+          
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release_build/Sistem-Analiza-Carti.zip

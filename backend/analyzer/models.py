@@ -14,7 +14,7 @@ class Autor(models.Model):
         verbose_name_plural = 'Autori'
 
     def __str__(self):
-        return f'{self.nume} {self.prenume or ''}'.strip()
+        return f"{self.nume} {self.prenume or ''}".strip()
 
 class Carte(models.Model):
     id_carte = models.AutoField(primary_key=True)
