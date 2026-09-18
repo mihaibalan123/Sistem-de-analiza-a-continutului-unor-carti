@@ -22,6 +22,8 @@ jobs:
           cp .env.example release_build/
           cp start_windows.bat release_build/
           cp start_linux.sh release_build/
+          cp stop_windows.bat release_build/
+          cp stop_linux.sh release_build/
           
           rm -rf release_build/backend/venv
           rm -rf release_build/backend/__pycache__
